@@ -1,0 +1,4 @@
+node_001,Titik Berak Paman Mas Mba,,
+node_002,Basecamp Mas Fuad,,
+node_003,Gerbang Dimensi Keputih,,
+node_004,Tembok Ratapan Keputih,,
