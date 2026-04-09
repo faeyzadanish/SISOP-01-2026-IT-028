@@ -1,86 +1,117 @@
 <details>
 <summary>Soal 1</summary>
-Membuat file KANJ.sh
+    
+### Membuat file KANJ.sh
+<p align="justify">
+Pembuatan file KANJ.sh bertujuan untuk mengotomatisasi pengolahan data penumpang dari file passenger.csv agar setiap permintaan soal (opsi a sampai e) dapat dijalankan secara sistematis melalui satu perintah awk. Penggunaan script ini memungkinkan pemrosesan kolom data seperti jumlah penumpang, total gerbong, pencarian usia tertua, perhitungan rata-rata usia, hingga klasifikasi penumpang business class dilakukan secara cepat dan akurat sesuai format output yang diinstruksikan oleh dosen. Dengan menyimpan kode dalam file script, instruksi pengerjaan menjadi lebih terorganisir dan memudahkan proses eksekusi perintah yang berulang tanpa harus menulis ulang logika program di terminal.
+</p>
 
+### Bagian Inisialisasi
 ```bash
 BEGIN {
-    FS=","
+    FS = "[,;\t]"
+    pilihan = ARGV[ARGC-1]
+    delete ARGV[ARGC-1]
 }
 ```
 
-Pada bagian ini, program melakukan konfigurasi awal dengan menentukan FS (Field Separator) sebagai koma (,). Hal ini penting karena file yang digunakan berformat CSV (Comma-Separated Values), sehingga setiap kolom data dapat diakses menggunakan indeks seperti $1, $2, $3, dan seterusnya.
-Dengan pengaturan ini, AWK dapat membaca setiap baris data dan memisahkannya ke dalam kolom-kolom yang terstruktur.
+* ```FS = "[,;\t]"```: Menentukan Field Separator (pemisah kolom). Kode ini membuat script fleksibel karena bisa membaca file yang dipisahkan koma (,), titik koma (;), atau tab (\t).
+* ```pilihan = ARGV[ARGC-1]```: Mengambil argumen terakhir yang diketik di terminal (huruf a, b, c, d, atau e) dan menyimpannya ke variabel pilihan.
+* ```delete ARGV[ARGC-1]```: Menghapus argumen huruf tersebut dari daftar file. Jika tidak dihapus, AWK akan mengira huruf "a" atau "b" adalah nama file dan akan memunculkan error file not found.
 
+### Bagian Normalisasi Data
 ```bash
 {
-    if (NR == 1) next
+    gsub(/\r/, "", $0)
+}
+```
 
-    total++
-    carriage[$3] = 1
+```gsub(/\r/, "", $0)```: Menghapus karakter Carriage Return (\r) yang biasanya muncul jika file CSV dibuat di Windows. Ini mencegah error pembacaan data di sistem Linux.
 
-    if ($4 > max_age) {
-        max_age = $4
-        oldest = $2
+### Bagian Identifikasi Kolom Otomatis (NR == 1)
+```bash
+NR == 1 {
+    for (i = 1; i <= NF; i++) {
+        col = tolower($i)
+        if (col ~ /nama/) c_name = i
+        if (col ~ /usia/) c_age = i
+        if (col ~ /kelas/) c_class = i
+        if (col ~ /gerbong/) c_gerbong = i
     }
+    next
+}
+```
 
-    sum_age += $4
+* ```NR == 1```: Instruksi khusus untuk baris pertama (Header).
+* ```tolower($i)```: Mengubah judul kolom menjadi huruf kecil semua agar pencarian lebih akurat.
+* ```if (col ~ /.../)```: Mencari nomor kolom secara otomatis berdasarkan kata kunci. Jadi, jika kolom "Usia" pindah urutan, script tidak akan rusak.
+* ```next```: Langsung lanjut ke baris berikutnya setelah selesai memetakan kolom.
 
-    if ($5 == "Business") {
-        business++
+### Bagian Pengolahan Data Penumpang
+```bash
+{
+    count++
+    
+    if (c_gerbong && $c_gerbong != "") {
+        gerbong[$c_gerbong] = 1
+    }
+    
+    if (c_age) {
+        val_age = $c_age + 0
+        if (val_age > 0) {
+            if (val_age > max_age) {
+                max_age = val_age
+                oldest_name = $c_name
+            }
+            sum_age += val_age
+            n_age++
+        }
+    }
+    
+    if (c_class && tolower($c_class) ~ /business/) {
+        bus++
     }
 }
 ```
 
-Bagian ini merupakan inti dari program karena semua data diproses di sini, baris demi baris.
+* ```count++```: Menghitung total seluruh penumpang yang ada.
+* ```gerbong[$c_gerbong]``` = 1: Memasukkan kode gerbong ke dalam associative array. Karena array index bersifat unik, maka gerbong yang sama tidak akan terhitung dua kali.
+* ```val_age > max_age```: Logika untuk mencari usia tertinggi. Jika ditemukan usia yang lebih besar dari data sebelumnya, script akan memperbarui nilai max_age dan menyimpan nama penumpangnya.
+* ```sum_age += val_age```: Menjumlahkan seluruh usia untuk keperluan rata-rata.
+* ```bus++```: Menambah hitungan jika pada kolom kelas ditemukan kata "business".
 
-Pertama, program mengecek apakah baris yang sedang dibaca adalah baris pertama (NR == 1). Jika iya, maka baris tersebut dilewati menggunakan next. Hal ini dilakukan karena baris pertama biasanya berisi header (judul kolom), bukan data penumpang yang ingin diolah.
-Selanjutnya, setiap baris yang valid akan dihitung sebagai satu penumpang melalui total++. Variabel ini akan menyimpan jumlah keseluruhan penumpang yang ada dalam dataset.
-Kemudian, program mencatat nomor gerbong menggunakan carriage[$3] = 1. Di sini, $3 diasumsikan sebagai kolom gerbong. Penggunaan array memungkinkan program menyimpan nilai unik saja, sehingga meskipun satu gerbong muncul berkali-kali, tetap hanya dihitung satu kali nantinya.
-Untuk mencari penumpang tertua, program membandingkan nilai umur pada kolom $4 dengan variabel max_age. Jika ditemukan umur yang lebih besar, maka nilai tersebut disimpan sebagai umur maksimum, dan nama penumpang ($2) disimpan sebagai penumpang tertua. Proses ini terus dilakukan sampai semua baris selesai dibaca.
-Selain itu, setiap umur penumpang dijumlahkan ke dalam variabel sum_age. Nilai ini nantinya digunakan untuk menghitung rata-rata usia penumpang.
-Terakhir, program melakukan pengecekan terhadap kolom $5 yang berisi kelas penumpang. Jika nilainya adalah "Business", maka variabel business akan ditambahkan satu. Dengan cara ini, program dapat menghitung jumlah penumpang yang berada di kelas Business.
-
+### Bagian Penampilan Hasil (END)
 ```bash
 END {
-    if (mode == "a") {
-        print "Jumlah seluruh penumpang KANJ adalah " total " orang"
-    }
-    else if (mode == "b") {
-        for (c in carriage) count++
-        print "Jumlah gerbong penumpang KANJ adalah " count
-    }
-    else if (mode == "c") {
-        print oldest " adalah penumpang kereta tertua dengan usia " max_age " tahun"
-    }
-    else if (mode == "d") {
-        avg = int(sum_age / total)
-        print "Rata-rata usia penumpang adalah " avg " tahun"
-    }
-    else if (mode == "e") {
-        print "Jumlah penumpang business class ada " business " orang"
+    if (pilihan == "a") {
+        print "Jumlah seluruh penumpang KANJ adalah " (count+0) " orang"
+    } 
+    else if (pilihan == "b") {
+        total_g = 0
+        for (i in gerbong) total_g++
+        print "Jumlah gerbong penumpang KANJ adalah " (total_g+0)
+    } 
+    else if (pilihan == "c") {
+        gsub(/"/, "", oldest_name)
+        print oldest_name " adalah penumpang kereta tertua dengan usia " (max_age+0) " tahun"
+    } 
+    else if (pilihan == "d") {
+        res_age = (n_age > 0) ? (sum_age / n_age) : 0
+        printf "Rata-rata usia penumpang adalah %.0f tahun\n", res_age
+    } 
+    else if (pilihan == "e") {
+        print "Jumlah penumpang business class ada " (bus+0) " orang"
+    } 
+    else {
+        print "Soal tidak dikenali. Gunakan a, b, c, d, atau e."
     }
 }
 ```
 
-Bagian END dijalankan setelah seluruh data selesai diproses. Pada bagian ini, program menentukan output yang akan ditampilkan berdasarkan nilai dari variabel mode.
-Jika mode bernilai "a", maka program akan menampilkan jumlah total penumpang yang sebelumnya sudah dihitung selama proses iterasi data.
-Jika mode bernilai "b", program akan menghitung jumlah gerbong unik dengan melakukan iterasi pada array carriage. Setiap elemen array merepresentasikan satu gerbong, sehingga jumlah elemen array sama dengan jumlah gerbong yang berbeda.
-Untuk mode "c", program akan menampilkan nama penumpang tertua beserta usianya. Nilai ini sudah diperoleh sebelumnya saat proses perbandingan umur dilakukan di bagian utama.
-Jika mode "d", program menghitung rata-rata usia dengan membagi total umur (sum_age) dengan jumlah penumpang (total). Fungsi int() digunakan agar hasilnya berupa bilangan bulat (dibulatkan ke bawah).
-Terakhir, jika mode "e", program akan menampilkan jumlah penumpang yang berada di kelas Business berdasarkan perhitungan yang telah dilakukan sebelumnya.
+* Bagian ini mengecek isi variabel pilihan. Jika user mengetik a, maka yang muncul adalah total penumpang, dan seterusnya.
+* ```printf "%.0f"```: Digunakan pada opsi d untuk membulatkan hasil rata-rata usia agar tidak ada angka di belakang koma.
 
-```bash
-awk -v mode=<mode> -f kanj.sh passenger.csv
-```
+### Output
 
-awk → menjalankan program AWK
+<img width="1247" height="811" alt="Screenshot (95)" src="https://github.com/user-attachments/assets/fb09f902-87d4-4ef1-b146-4adcab95932c" />
 
--v mode=<mode> → mengirim parameter mode ke script
-
--f kanj.sh → menggunakan file script yang dibuat
-
-passenger.csv → file data yang diproses
-
-<img width="1427" height="888" alt="Screenshot (41)" src="https://github.com/user-attachments/assets/0cf0108e-1fdf-4aad-9f39-653224dbd8e0" />
-
-ini untuk hasil outputnya ketika program dijalankan
